@@ -1,122 +1,115 @@
 // script.js
-// UPE-X Toy Demo: prime/factor detection using resonance sums from zeta zeros
-// Works best for N up to ~1e6 (demo range). All runs in browser JavaScript.
+// UPE-X Demo (Miller–Rabin primality + Pollard's Rho factorization)
+// Corrected to handle perfect squares and stubborn cases properly.
 
-// --- Hardcoded list of first 20 nontrivial zeta zeros (imaginary parts) ---
-const ZETA_ZEROS = [
-  14.1347251417347, 21.0220396387715, 25.0108575801457, 30.4248761258595,
-  32.9350615877392, 37.5861781588257, 40.9187190121475, 43.3270732809149,
-  48.0051508811672, 49.7738324776723, 52.9703214777145, 56.4462476970630,
-  59.3470440026022, 60.8317785246098, 65.1125440480819, 67.0798105294942,
-  69.5464017111730, 72.0671576744818, 75.7046906990839, 77.1448400688742
-];
-
-// --- Parameters for smoothing and search window ---
-const DEFAULT_SIGMA = 0.15;   // Gaussian smoothing parameter
-const DEFAULT_RADIUS = 100;   // range around sqrt(N) to search
-const MAX_RADIUS = 1000;      // safety cap
-
-// --- Complex helpers ---
-function cAdd(a, b) { return { re: a.re + b.re, im: a.im + b.im }; }
-function cMul(a, b) { return { re: a.re*b.re - a.im*b.im, im: a.re*b.im + a.im*b.re }; }
-function cScale(a, s) { return { re: a.re*s, im: a.im*s }; }
-function cDiv(a, b) {
-  const denom = b.re*b.re + b.im*b.im;
-  return { re: (a.re*b.re + a.im*b.im)/denom, im: (a.im*b.re - a.re*b.im)/denom };
-}
-function cExpI(theta) { return { re: Math.cos(theta), im: Math.sin(theta) }; }
-
-// --- Fourier transform of Gaussian ---
-function phiHatGaussian(gamma, sigma) {
-  return sigma * Math.sqrt(2*Math.PI) * Math.exp(-0.5 * (sigma*sigma) * (gamma*gamma));
+// --- modular exponentiation ---
+function modPow(base, exp, mod) {
+  let result = 1n;
+  base = base % mod;
+  while (exp > 0n) {
+    if (exp % 2n === 1n) result = (result * base) % mod;
+    exp = exp / 2n;
+    base = (base * base) % mod;
+  }
+  return result;
 }
 
-// --- Weight term for zero γ ---
-function wGamma(m, gamma) {
-  const sqrtm = Math.sqrt(m);
-  const theta = gamma * Math.log(m);
-  const num = { re: sqrtm * Math.cos(theta), im: sqrtm * Math.sin(theta) };
-  const denom = { re: 0.5, im: gamma };
-  return cDiv(num, denom);
-}
+// --- Miller–Rabin primality test ---
+function isProbablePrime(n, k = 10) {
+  if (n < 2n) return false;
+  if (n === 2n || n === 3n) return true;
+  if (n % 2n === 0n) return false;
 
-// --- Main resonance score ---
-function computeSpectralScores(N, radius=DEFAULT_RADIUS, sigma=DEFAULT_SIGMA) {
-  if (radius > MAX_RADIUS) radius = MAX_RADIUS;
-  const m = Math.log(N);
-  const sqrtN = Math.floor(Math.sqrt(N));
-  const start = Math.max(2, sqrtN - radius);
-  const end = sqrtN + radius;
-
-  const coeffs = ZETA_ZEROS.map(gamma => {
-    const wg = wGamma(m, gamma);
-    const ph = phiHatGaussian(gamma, sigma);
-    return cScale(wg, ph);
-  });
-
-  const results = [];
-  for (let k = start; k <= end; k++) {
-    const logk = Math.log(k);
-    let acc = { re: 0, im: 0 };
-    for (let j = 0; j < ZETA_ZEROS.length; j++) {
-      const phase = cExpI(ZETA_ZEROS[j] * logk);
-      const term = cMul(coeffs[j], phase);
-      acc = cAdd(acc, term);
-    }
-    results.push({ k: k, score: acc.re });
+  // write n-1 as 2^r * d
+  let r = 0n;
+  let d = n - 1n;
+  while (d % 2n === 0n) {
+    d /= 2n;
+    r += 1n;
   }
 
-  results.sort((a, b) => b.score - a.score);
-  return results;
+  const bases = [2n, 3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n];
+  for (let i = 0; i < k; i++) {
+    const a = i < bases.length ? bases[i] : 2n + BigInt(Math.floor(Math.random() * Number(n - 3n)));
+    if (a % n === 0n) continue;
+    let x = modPow(a, d, n);
+    if (x === 1n || x === n - 1n) continue;
+    let continueLoop = false;
+    for (let j = 1n; j < r; j++) {
+      x = modPow(x, 2n, n);
+      if (x === n - 1n) {
+        continueLoop = true;
+        break;
+      }
+    }
+    if (!continueLoop) return false;
+  }
+  return true;
 }
 
-// --- Try exact division for candidate factors ---
-function tryDivision(N, k) {
-  if (N % k === 0) return [k, N / k];
-  return null;
+// --- gcd helper ---
+function gcd(a, b) {
+  while (b) {
+    let t = b;
+    b = a % b;
+    a = t;
+  }
+  return a;
 }
 
-// --- UI interaction ---
+// --- Pollard's Rho factorization ---
+function pollardsRho(n) {
+  if (n % 2n === 0n) return 2n;
+  let x = 2n, y = 2n, d = 1n;
+  const f = (x) => (x * x + 1n) % n;
+  while (d === 1n) {
+    x = f(x);
+    y = f(f(y));
+    d = gcd(x > y ? x - y : y - x, n);
+  }
+  return d === n ? null : d;
+}
+
+// --- full recursive factorization with fallback ---
+function factorize(n) {
+  if (n === 1n) return [];
+  if (isProbablePrime(n)) return [n];
+
+  let divisor = pollardsRho(n);
+
+  // fallback to trial division if Rho fails
+  if (!divisor || divisor === n) {
+    for (let d = 2n; d * d <= n; d++) {
+      if (n % d === 0n) {
+        return [...factorize(d), ...factorize(n / d)];
+      }
+    }
+    return [n];
+  }
+
+  return [...factorize(divisor), ...factorize(n / divisor)];
+}
+
+// --- main UI function ---
 function analyzeNumber() {
-  const out = document.getElementById("output");
-  out.innerHTML = "";
-
-  const raw = document.getElementById("numberInput").value.trim();
-  if (!raw) {
-    out.innerHTML = "<b>Please enter an integer N.</b>";
+  const input = document.getElementById("numberInput");
+  let n;
+  try {
+    n = BigInt(input.value.trim());
+  } catch {
+    document.getElementById("output").innerHTML = "⚠️ Please enter a valid integer.";
     return;
   }
-  const N = Number(raw);
-  if (!Number.isFinite(N) || N < 2) {
-    out.innerHTML = "<b>Please enter a positive integer ≥ 2.</b>";
+  if (n <= 0n) {
+    document.getElementById("output").innerHTML = "⚠️ Enter a positive integer.";
     return;
   }
 
-  out.innerHTML = `<b>Computing resonance scores...</b><br/>`;
-
-  setTimeout(() => {
-    const scores = computeSpectralScores(N);
-    const topK = Math.min(10, scores.length);
-
-    let html = "<h3>Top candidates (k : score)</h3><ol>";
-    for (let i = 0; i < topK; i++) {
-      html += `<li>${scores[i].k} : ${scores[i].score.toFixed(6)}</li>`;
-    }
-    html += "</ol>";
-
-    let found = null;
-    for (let i = 0; i < topK; i++) {
-      const k = scores[i].k;
-      const d = tryDivision(N, k);
-      if (d) { found = d; break; }
-    }
-
-    if (found) {
-      html += `<p style="color:green"><b>Factor found:</b> ${found[0]} × ${found[1]}</p>`;
-    } else {
-      html += `<p style="color:orange"><b>No exact factor found in top ${topK} candidates.</b></p>`;
-    }
-
-    out.innerHTML = html;
-  }, 30);
+  if (isProbablePrime(n)) {
+    document.getElementById("output").innerHTML = `<b>${n}</b> is <span style="color:green">prime</span>.`;
+  } else {
+    const factors = factorize(n);
+    factors.sort((a, b) => (a < b ? -1 : 1));
+    document.getElementById("output").innerHTML = `<b>${n}</b> is composite.<br/>Factors: ${factors.join(" × ")}`;
+  }
 }
