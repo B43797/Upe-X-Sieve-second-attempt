@@ -3,27 +3,32 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>UPE-X Prime Detection & Factoring Demo</title>
+  <title>UPE-X: Prime Detection & Factoring (Resonance Demo)</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header>
-    <h1>UPE-X: Prime Detection & Factoring (Demo)</h1>
-    <p>Enter an integer N below to test primality or find factors (Miller–Rabin + Pollard's Rho).</p>
+    <h1>UPE-X: Prime Detection & Factoring (Resonance Demo)</h1>
+    <p>
+      Enter an integer N below.  
+      This demo uses a <b>toy UPE-X resonance sieve</b> (zeta zeros)  
+      to suggest prime factors near √N.
+    </p>
   </header>
 
   <main>
     <div class="input-box">
-      <input type="text" id="numberInput" placeholder="Enter an integer N" />
+      <input type="number" id="numberInput" placeholder="Enter an integer N" />
       <button onclick="analyzeNumber()">Run UPE-X Demo</button>
     </div>
     <div id="output" class="output-box"></div>
   </main>
 
   <footer>
-    <p>© 2025 Bahbouhi Bouchaib — UPE-X Demo on GitHub Pages</p>
+    <p>© 2025 Bahbouhi Bouchaib — UPE-X Resonance Demo on GitHub Pages</p>
   </footer>
 
+  <!-- Make sure script.js is in the same folder as this file -->
   <script src="script.js"></script>
 </body>
 </html>
